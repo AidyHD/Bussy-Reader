@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "Bussy Reader",
+    "slug": "bussy-reader",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "bussy-reader",
+    "userInterfaceStyle": "automatic",
+    "web": {
+      "favicon": "./assets/images/icon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ]
+    ],
+    "autolinking": {
+      "searchPaths": [
+        "./modules",
+        "./node_modules",
+        "../../node_modules"
+      ]
+    },
+    "ios": {
+      "supportsTablet": false,
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "audio"
+        ]
+      }
+    },
+    "android": {
+      "package": "com.bussyreader.app",
+      "permissions": [
+        "WAKE_LOCK",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
+    },
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "906fb741-df5b-437e-8be3-2215a2d38f30"
+      }
+    },
+    "owner": "replit-private-f6609a3e-e68e-4ad5-8e5f-fac02701fe35"
+  }
+}

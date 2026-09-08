@@ -1,0 +1,16 @@
+{
+  "name": "bussy-reader-speech",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "files": [
+    "android",
+    "expo-module.config.json",
+    "package.json",
+    "src"
+  ],
+  "peerDependencies": {
+    "expo": "*",
+    "expo-modules-core": "*"
+  }
+}

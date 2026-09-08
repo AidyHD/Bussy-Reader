@@ -1,0 +1,24 @@
+kind = "mobile"
+previewPath = "/bussy-reader/"
+title = "Bussy Reader"
+description = "A private, offline-first mobile document reader for PDF, EPUB, and text files with local progress, bookmarks, themes, and read-aloud controls."
+version = "1.0.0"
+id = "artifacts/bussy-reader"
+router = "expo-domain"
+
+[[services]]
+name = "expo"
+ensurePreviewReachable = "/status"
+paths = [ "/bussy-reader/" ]
+localPort = 19934
+
+[services.development]
+run = "pnpm --filter @workspace/bussy-reader run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/bussy-reader", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/bussy-reader", "run", "serve" ]
+
+[services.env]
+PORT = "19934"
+BASE_PATH = "/bussy-reader/"

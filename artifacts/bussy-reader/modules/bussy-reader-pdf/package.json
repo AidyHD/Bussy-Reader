@@ -1,0 +1,17 @@
+{
+  "name": "bussy-reader-pdf",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "files": [
+    "android",
+    "ios",
+    "expo-module.config.json",
+    "package.json",
+    "src"
+  ],
+  "peerDependencies": {
+    "expo": "*",
+    "expo-modules-core": "*"
+  }
+}

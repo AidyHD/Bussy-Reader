@@ -1,0 +1,15 @@
+modules = ["nodejs-24", "java-graalvm22.3", "python-base-3.13"]
+
+[deployment]
+router = "application"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 180000
+
+[nix]
+channel = "stable-25_05"
+
+[[ports]]
+localPort = 19934
+externalPort = 80
