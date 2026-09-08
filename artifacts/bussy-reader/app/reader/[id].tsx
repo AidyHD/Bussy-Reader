@@ -7,7 +7,7 @@ import { ActivityIndicator, Alert, AppState, FlatList, Modal, PanResponder, Pres
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { PdfReaderView } from '@/components/PdfReaderView';
+import { PDF_RETRY_MESSAGE, PdfReaderView } from '@/components/PdfReaderView';
 import { Book, useLibrary } from '@/context/LibraryContext';
 import { useColors } from '@/hooks/useColors';
 import * as ReadAloudSpeech from '@/modules/bussy-reader-speech/src';
@@ -744,7 +744,7 @@ export default function ReaderScreen() {
             }}
              onError={(message) => {
                 console.error('[Bussy Reader] Local PDF parser error', { uri: book.uri, message });
-               setLoadError(`Unable to open this local PDF. Try importing it again. ${message}`);
+                setLoadError(message === PDF_RETRY_MESSAGE ? null : `Unable to open this local PDF. Try importing it again. ${message}`);
                if (isReadingAloudRef.current) stopReading();
              }}
             onLoadingChange={setLoading}
@@ -784,7 +784,7 @@ export default function ReaderScreen() {
             getItemLayout={(_, index) => ({ length: pageWidth, offset: pageWidth * index, index })}
           />
         )}
-        {loading && <View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={[styles.loadingText, { color: theme.muted }]}>Loading…</Text></View>}
+        {loading && <View testID="pdf-loading-overlay" style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={[styles.loadingText, { color: theme.muted }]}>Loading PDF…</Text></View>}
         {loadError && <View pointerEvents="none" style={[styles.errorBanner, { backgroundColor: `${theme.background}F2` }]}><Feather name="alert-circle" size={18} color={colors.primary} /><Text style={[styles.errorText, { color: theme.foreground }]}>{loadError}</Text></View>}
       </View>
        {overlay && <View style={[styles.readerFooter, { backgroundColor: theme.background, borderTopColor: theme.border }]}>

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   closePdf,
   getPdfPageText,
@@ -36,6 +36,36 @@ type PdfSession = {
 };
 
 const TEXT_CACHE_LIMIT = 2;
+const PDF_OPEN_TIMEOUT_MS = 10_000;
+export const PDF_RETRY_MESSAGE = 'Failed to render PDF page. Tap to retry.';
+
+type OpenedPdf = Awaited<ReturnType<typeof openPdf>>;
+
+const openPdfWithTimeout = (uri: string) => new Promise<OpenedPdf>((resolve, reject) => {
+  let settled = false;
+  const timeout = setTimeout(() => {
+    settled = true;
+    reject(new Error(PDF_RETRY_MESSAGE));
+  }, PDF_OPEN_TIMEOUT_MS);
+
+  Promise.resolve()
+    .then(() => openPdf(uri))
+    .then((opened) => {
+      if (settled) {
+        void closePdf(opened.id);
+        return;
+      }
+      settled = true;
+      clearTimeout(timeout);
+      resolve(opened);
+    })
+    .catch((error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      reject(error);
+    });
+});
 
 const clampPage = (page: number, pageCount: number) => (
   Math.max(0, Math.min(pageCount - 1, Math.floor(page)))
@@ -60,6 +90,8 @@ export function PdfReaderView({
   const [pageCount, setPageCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(0);
   const [pageImage, setPageImage] = useState<string | null>(null);
+  const [hasError, setHasError] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [layout, setLayout] = useState({ width: 0, height: 0 });
   const sessionRef = useRef<PdfSession | null>(null);
   const currentPageRef = useRef(0);
@@ -187,6 +219,7 @@ export function PdfReaderView({
     const load = async () => {
       setSession(null);
       setPageImage(null);
+      setHasError(false);
       setPageCount(0);
       setCurrentPage(0);
       currentPageRef.current = 0;
@@ -198,7 +231,7 @@ export function PdfReaderView({
       callbacksRef.current.onLoadingChange(true);
 
       try {
-        const opened = await openPdf(uri);
+        const opened = await openPdfWithTimeout(uri);
         if (cancelled) {
           await closePdf(opened.id);
           return;
@@ -227,8 +260,10 @@ export function PdfReaderView({
         }
       } catch (error) {
         if (!cancelled) {
+          const message = error instanceof Error ? error.message : 'This PDF could not be opened.';
+          if (message === PDF_RETRY_MESSAGE) setHasError(true);
           callbacksRef.current.onLoadingChange(false);
-          callbacksRef.current.onError(error instanceof Error ? error.message : 'This PDF could not be opened.');
+          callbacksRef.current.onError(message);
         }
       }
     };
@@ -241,7 +276,7 @@ export function PdfReaderView({
       sessionRef.current = null;
       if (active) void closePdf(active.id);
     };
-  }, [initialPage, uri]);
+  }, [initialPage, retryNonce, uri]);
 
   useEffect(() => {
     if (
@@ -291,10 +326,18 @@ export function PdfReaderView({
           source={{ uri: pageImage }}
           style={styles.page}
         />
+      ) : hasError ? (
+        <Pressable
+          accessibilityLabel={PDF_RETRY_MESSAGE}
+          accessibilityRole="button"
+          onPress={() => setRetryNonce((value) => value + 1)}
+          style={styles.emptyPage}
+        >
+          <Text style={[styles.message, { color: theme.muted }]}>{PDF_RETRY_MESSAGE}</Text>
+        </Pressable>
       ) : (
         <View style={styles.emptyPage}>
           <ActivityIndicator color={theme.foreground} />
-          <Text style={[styles.message, { color: theme.muted }]}>{pageLabel}</Text>
         </View>
       )}
     </View>

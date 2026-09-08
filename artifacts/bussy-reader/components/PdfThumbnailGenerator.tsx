@@ -17,6 +17,8 @@ type ThumbnailMessage =
   | { type: 'thumbnail'; base64Png: string }
   | { type: 'error'; message: string };
 
+const THUMBNAIL_TIMEOUT_MS = 15_000;
+
 const buildThumbnailHtml = (sourceUri: string, fileSize: number) => `
 <!doctype html>
 <html>
@@ -154,7 +156,16 @@ const buildThumbnailHtml = (sourceUri: string, fileSize: number) => `
 export function PdfThumbnailGenerator({ sourceUri, onComplete }: PdfThumbnailGeneratorProps) {
   const completedRef = useRef(false);
   const webViewRef = useRef<WebView>(null);
+  const onCompleteRef = useRef(onComplete);
   const [fileSize, setFileSize] = React.useState<number | null>(null);
+
+  onCompleteRef.current = onComplete;
+
+  const complete = (base64Png: string | null) => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    onCompleteRef.current(base64Png);
+  };
 
   useEffect(() => {
     completedRef.current = false;
@@ -166,14 +177,22 @@ export function PdfThumbnailGenerator({ sourceUri, onComplete }: PdfThumbnailGen
         uri: sourceUri,
         error,
       });
-      if (!completedRef.current) {
-        completedRef.current = true;
-        onComplete(null);
-      }
+      complete(null);
     }
   }, [sourceUri]);
 
   const html = useMemo(() => fileSize === null ? null : buildThumbnailHtml(sourceUri, fileSize), [sourceUri, fileSize]);
+
+  useEffect(() => {
+    if (html === null) return;
+    const timeout = setTimeout(() => {
+      console.warn('[Bussy Reader] PDF thumbnail timed out; using the styled placeholder cover.', {
+        uri: sourceUri,
+      });
+      complete(null);
+    }, THUMBNAIL_TIMEOUT_MS);
+    return () => clearTimeout(timeout);
+  }, [html, sourceUri]);
 
   const handleMessage = (event: WebViewMessageEvent) => {
     if (completedRef.current) return;
@@ -202,17 +221,15 @@ export function PdfThumbnailGenerator({ sourceUri, onComplete }: PdfThumbnailGen
          }
          return;
        }
-      completedRef.current = true;
       if (message.type === 'error') {
         console.error('[Bussy Reader] Local PDF thumbnail parser error', {
           uri: sourceUri,
           message: message.message,
         });
       }
-      onComplete(message.type === 'thumbnail' ? message.base64Png : null);
+       complete(message.type === 'thumbnail' ? message.base64Png : null);
     } catch {
-      completedRef.current = true;
-      onComplete(null);
+       complete(null);
     }
   };
 
@@ -224,6 +241,8 @@ export function PdfThumbnailGenerator({ sourceUri, onComplete }: PdfThumbnailGen
       originWhitelist={['*']}
       source={{ html, baseUrl: sourceUri.slice(0, Math.max(sourceUri.lastIndexOf('/') + 1, 0)) }}
       onMessage={handleMessage}
+       onError={() => complete(null)}
+       onHttpError={() => complete(null)}
       javaScriptEnabled
       domStorageEnabled
       allowFileAccess

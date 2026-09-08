@@ -241,6 +241,7 @@ describe('ReaderScreen read aloud PDF flow', () => {
 
   it('keeps the reader URI-based and the thumbnail failure path non-blocking', () => {
     const readerSource = readFileSync(join(__dirname, '../../../components/PdfReaderView.tsx'), 'utf8');
+    const readerScreenSource = readFileSync(join(__dirname, '../[id].tsx'), 'utf8');
     const thumbnailSource = readFileSync(join(__dirname, '../../../components/PdfThumbnailGenerator.tsx'), 'utf8');
     const librarySource = readFileSync(join(__dirname, '../../../context/LibraryContext.tsx'), 'utf8');
     const androidPdfSource = readFileSync(join(__dirname, '../../../modules/bussy-reader-pdf/android/src/main/java/expo/modules/bussyreaderpdf/BussyReaderPdfModule.kt'), 'utf8');
@@ -249,8 +250,14 @@ describe('ReaderScreen read aloud PDF flow', () => {
     expect(readerSource).toContain('renderPdfPage');
     expect(readerSource).toContain('getPdfPageText');
     expect(readerSource).not.toContain('readAsStringAsync');
+    expect(readerSource).toContain('PDF_OPEN_TIMEOUT_MS = 10_000');
+    expect(readerSource).toContain('Failed to render PDF page. Tap to retry.');
+    expect(readerScreenSource).toContain('testID="pdf-loading-overlay"');
+    expect(readerScreenSource).toContain('>Loading PDF…</Text>');
     expect(thumbnailSource).toContain('readPdfRangeAsBase64');
-    expect(thumbnailSource).toContain('onComplete(null)');
+    expect(thumbnailSource).toContain('complete(null)');
+    expect(thumbnailSource).toContain('THUMBNAIL_TIMEOUT_MS = 15_000');
+    expect(thumbnailSource).toContain('onError={() => complete(null)}');
     expect(thumbnailSource).toContain('let workerUrl = null');
     expect(androidPdfSource).toContain('MemoryUsageSetting.setupTempFileOnly()');
     expect(androidPdfSource).toContain('session.textDocument ?: openInput(session.textUri)');
