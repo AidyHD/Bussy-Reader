@@ -2,10 +2,10 @@
   "build": {
     "preview": {
       "distribution": "internal",
-      "image": "ubuntu-24.04-jdk-17-ndk-r27b",
       "node": "20.18.0",
       "pnpm": "10.26.1",
       "android": {
+        "image": "ubuntu-24.04-jdk-17-ndk-r27b",
         "buildType": "apk"
       }
     }
