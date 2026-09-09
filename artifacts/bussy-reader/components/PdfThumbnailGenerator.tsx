@@ -2,11 +2,6 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { StyleSheet } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { pdfjsSource, pdfjsWorkerSource } from '@/lib/pdfjs-source';
-import {
-  getPdfFileSize,
-  PDF_RANGE_CHUNK_SIZE,
-  readPdfRangeAsBase64,
-} from '@/lib/pdf-range-bridge';
 
 type PdfThumbnailGeneratorProps = {
   sourceUri: string;
@@ -19,7 +14,7 @@ type ThumbnailMessage =
 
 const THUMBNAIL_TIMEOUT_MS = 15_000;
 
-const buildThumbnailHtml = (sourceUri: string, fileSize: number) => `
+const buildThumbnailHtml = (sourceUri: string) => `
 <!doctype html>
 <html>
   <head>
@@ -33,8 +28,6 @@ const buildThumbnailHtml = (sourceUri: string, fileSize: number) => `
     <canvas id="thumbnail"></canvas>
     <script type="module">
       const PDF_URI = ${JSON.stringify(sourceUri)};
-       const PDF_FILE_SIZE = ${Math.max(0, Math.floor(fileSize))};
-       const PDF_RANGE_CHUNK_SIZE = ${PDF_RANGE_CHUNK_SIZE};
       const PDFJS_SOURCE = ${JSON.stringify(pdfjsSource)};
       const PDFJS_WORKER_SOURCE = ${JSON.stringify(pdfjsWorkerSource)};
       const canvas = document.getElementById('thumbnail');
@@ -43,85 +36,21 @@ const buildThumbnailHtml = (sourceUri: string, fileSize: number) => `
         if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(payload));
       };
 
-       const decodeBase64 = (value) => {
-        const binary = atob(value.replace(/^data:application\\/pdf;base64,/, ''));
-        const bytes = new Uint8Array(binary.length);
-        for (let index = 0; index < binary.length; index += 1) {
-          bytes[index] = binary.charCodeAt(index);
-        }
-        return bytes;
-      };
-
-       let rangeTransport = null;
-       let nextRangeRequestId = 1;
-       const pendingRangeRequests = new Map();
-       const requestNextRange = (requestId) => {
-         const request = pendingRangeRequests.get(requestId);
-         if (!request) return;
-         if (request.next >= request.end) {
-           pendingRangeRequests.delete(requestId);
-           return;
-         }
-         const end = Math.min(request.end, request.next + PDF_RANGE_CHUNK_SIZE);
-         send({ type: 'pdfRangeRequest', requestId, begin: request.next, end });
-       };
-
-       const handleRangeResponse = (payload) => {
-         try {
-           const request = pendingRangeRequests.get(payload.requestId);
-           if (!request || !rangeTransport) return;
-           if (payload.error) throw new Error(payload.error);
-           const bytes = decodeBase64(payload.base64);
-           if (payload.begin !== request.next || bytes.length === 0) {
-             throw new Error('The local PDF returned an invalid byte range.');
-           }
-           request.next += bytes.length;
-           rangeTransport.onDataRange(payload.begin, bytes);
-           requestNextRange(payload.requestId);
-         } catch (error) {
-           send({ type: 'error', message: error instanceof Error ? error.message : 'The local PDF range could not be read.' });
-         }
-       };
-
-       const handleNativeMessage = (event) => {
-         try {
-           const payload = JSON.parse(event.data);
-           if (payload.type === 'pdfRangeResponse') handleRangeResponse(payload);
-         } catch (error) {
-           send({ type: 'error', message: error instanceof Error ? error.message : 'The thumbnail reader received an invalid response.' });
-         }
-       };
-       window.addEventListener('message', handleNativeMessage);
-       document.addEventListener('message', handleNativeMessage);
-
-       let pdf = null;
-       let pdfPage = null;
-       let workerUrl = null;
       try {
         const moduleUrl = URL.createObjectURL(new Blob([PDFJS_SOURCE], { type: 'text/javascript' }));
-         workerUrl = URL.createObjectURL(new Blob([PDFJS_WORKER_SOURCE], { type: 'text/javascript' }));
+        const workerUrl = URL.createObjectURL(new Blob([PDFJS_WORKER_SOURCE], { type: 'text/javascript' }));
         const pdfjsLib = await import(moduleUrl);
         URL.revokeObjectURL(moduleUrl);
         pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
-         let LocalPdfRangeTransport = class extends pdfjsLib.PDFDataRangeTransport {
-           requestDataRange(begin, end) {
-             const requestId = nextRangeRequestId++;
-             pendingRangeRequests.set(requestId, { next: begin, end });
-             requestNextRange(requestId);
-           }
-         };
-         rangeTransport = new LocalPdfRangeTransport(PDF_FILE_SIZE, new Uint8Array(0));
-         pdf = await pdfjsLib.getDocument({
-           range: rangeTransport,
-           length: PDF_FILE_SIZE,
-           rangeChunkSize: PDF_RANGE_CHUNK_SIZE,
+        const pdf = await pdfjsLib.getDocument({
+          url: PDF_URI,
           useWorkerFetch: false,
           disableAutoFetch: true,
-           disableStream: true,
+          disableStream: false,
           isEvalSupported: false,
         }).promise;
-         pdfPage = await pdf.getPage(1);
+        const pdfPage = await pdf.getPage(1);
         const baseViewport = pdfPage.getViewport({ scale: 1 });
         const maxWidth = 720;
         const maxHeight = 1024;
@@ -140,13 +69,11 @@ const buildThumbnailHtml = (sourceUri: string, fileSize: number) => `
         context.fillRect(0, 0, viewport.width, viewport.height);
         await pdfPage.render({ canvasContext: context, viewport }).promise;
         const dataUrl = canvas.toDataURL('image/png');
+        pdfPage.cleanup();
+        await pdf.cleanup();
         send({ type: 'thumbnail', base64Png: dataUrl.slice(dataUrl.indexOf(',') + 1) });
       } catch (error) {
         send({ type: 'error', message: error instanceof Error ? error.message : 'The PDF cover could not be generated.' });
-       } finally {
-         pdfPage?.cleanup();
-         await pdf?.destroy().catch(() => {});
-         if (workerUrl) URL.revokeObjectURL(workerUrl);
       }
     </script>
   </body>
@@ -155,9 +82,8 @@ const buildThumbnailHtml = (sourceUri: string, fileSize: number) => `
 
 export function PdfThumbnailGenerator({ sourceUri, onComplete }: PdfThumbnailGeneratorProps) {
   const completedRef = useRef(false);
-  const webViewRef = useRef<WebView>(null);
   const onCompleteRef = useRef(onComplete);
-  const [fileSize, setFileSize] = React.useState<number | null>(null);
+  const html = useMemo(() => buildThumbnailHtml(sourceUri), [sourceUri]);
 
   onCompleteRef.current = onComplete;
 
@@ -169,22 +95,6 @@ export function PdfThumbnailGenerator({ sourceUri, onComplete }: PdfThumbnailGen
 
   useEffect(() => {
     completedRef.current = false;
-    setFileSize(null);
-    try {
-      setFileSize(getPdfFileSize(sourceUri));
-    } catch (error) {
-      console.error('[Bussy Reader] Failed to load local PDF for thumbnail', {
-        uri: sourceUri,
-        error,
-      });
-      complete(null);
-    }
-  }, [sourceUri]);
-
-  const html = useMemo(() => fileSize === null ? null : buildThumbnailHtml(sourceUri, fileSize), [sourceUri, fileSize]);
-
-  useEffect(() => {
-    if (html === null) return;
     const timeout = setTimeout(() => {
       console.warn('[Bussy Reader] PDF thumbnail timed out; using the styled placeholder cover.', {
         uri: sourceUri,
@@ -192,57 +102,31 @@ export function PdfThumbnailGenerator({ sourceUri, onComplete }: PdfThumbnailGen
       complete(null);
     }, THUMBNAIL_TIMEOUT_MS);
     return () => clearTimeout(timeout);
-  }, [html, sourceUri]);
+  }, [sourceUri]);
 
   const handleMessage = (event: WebViewMessageEvent) => {
     if (completedRef.current) return;
     try {
-       const message = JSON.parse(event.nativeEvent.data) as ThumbnailMessage | { type: 'pdfRangeRequest'; requestId: number; begin: number; end: number };
-       if (message.type === 'pdfRangeRequest') {
-         try {
-           const base64 = readPdfRangeAsBase64(sourceUri, message.begin, message.end);
-            webViewRef.current?.postMessage(JSON.stringify({
-              type: 'pdfRangeResponse',
-              requestId: message.requestId,
-              begin: message.begin,
-              base64,
-            }));
-         } catch (error) {
-           console.error('[Bussy Reader] Local PDF thumbnail range error', {
-             uri: sourceUri,
-             error,
-           });
-            webViewRef.current?.postMessage(JSON.stringify({
-              type: 'pdfRangeResponse',
-              requestId: message.requestId,
-              begin: message.begin,
-              error: error instanceof Error ? error.message : 'The local PDF range could not be read.',
-            }));
-         }
-         return;
-       }
+      const message = JSON.parse(event.nativeEvent.data) as ThumbnailMessage;
       if (message.type === 'error') {
         console.error('[Bussy Reader] Local PDF thumbnail parser error', {
           uri: sourceUri,
           message: message.message,
         });
       }
-       complete(message.type === 'thumbnail' ? message.base64Png : null);
+      complete(message.type === 'thumbnail' ? message.base64Png : null);
     } catch {
-       complete(null);
+      complete(null);
     }
   };
 
-  if (html === null) return null;
-
   return (
     <WebView
-      ref={webViewRef}
       originWhitelist={['*']}
       source={{ html, baseUrl: sourceUri.slice(0, Math.max(sourceUri.lastIndexOf('/') + 1, 0)) }}
       onMessage={handleMessage}
-       onError={() => complete(null)}
-       onHttpError={() => complete(null)}
+      onError={() => complete(null)}
+      onHttpError={() => complete(null)}
       javaScriptEnabled
       domStorageEnabled
       allowFileAccess
@@ -254,7 +138,7 @@ export function PdfThumbnailGenerator({ sourceUri, onComplete }: PdfThumbnailGen
       bounces={false}
       pointerEvents="none"
       style={styles.hiddenWebView}
-      />
+    />
   );
 }
 
