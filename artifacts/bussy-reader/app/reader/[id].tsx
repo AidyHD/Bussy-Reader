@@ -3,7 +3,7 @@ import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-aud
 import * as FileSystem from 'expo-file-system/legacy';
 import * as KeepAwake from 'expo-keep-awake';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, FlatList, Modal, PanResponder, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, AppState, FlatList, Modal, PanResponder, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -784,7 +784,7 @@ export default function ReaderScreen() {
             getItemLayout={(_, index) => ({ length: pageWidth, offset: pageWidth * index, index })}
           />
         )}
-        {loading && <View testID="pdf-loading-overlay" style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={[styles.loadingText, { color: theme.muted }]}>Loading PDF…</Text></View>}
+        {loading && <View testID="pdf-loading-overlay" style={styles.loading}><Text style={[styles.loadingText, { color: theme.muted }]}>Loading PDF…</Text></View>}
         {loadError && <View pointerEvents="none" style={[styles.errorBanner, { backgroundColor: `${theme.background}F2` }]}><Feather name="alert-circle" size={18} color={colors.primary} /><Text style={[styles.errorText, { color: theme.foreground }]}>{loadError}</Text></View>}
       </View>
        {overlay && <View style={[styles.readerFooter, { backgroundColor: theme.background, borderTopColor: theme.border }]}>
@@ -871,7 +871,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   documentStage: { flex: 1, minHeight: 0, overflow: 'hidden' },
   loading: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
-  loadingText: { marginTop: 12, fontSize: 13 },
+  loadingText: { fontSize: 13 },
   errorBanner: { position: 'absolute', top: '43%', left: 28, right: 28, padding: 18, borderRadius: 16, flexDirection: 'row', gap: 10, alignItems: 'flex-start', zIndex: 2 },
   errorText: { flex: 1, fontSize: 13, lineHeight: 19 },
   readerHeader: { minHeight: 62, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 10 },

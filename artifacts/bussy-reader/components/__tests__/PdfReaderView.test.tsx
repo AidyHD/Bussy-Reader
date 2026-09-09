@@ -1,10 +1,28 @@
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 
+jest.mock('react-native-webview', () => {
+  const mockReact = require('react') as typeof React;
+  const { View } = require('react-native') as typeof import('react-native');
+  return {
+    WebView: mockReact.forwardRef((props: Record<string, unknown>, ref: React.Ref<{ postMessage: jest.Mock }>) => {
+      mockReact.useImperativeHandle(ref, () => ({ postMessage: jest.fn() }));
+      return <View testID="pdf-fallback-webview" {...props} />;
+    }),
+  };
+});
+
 const mockOpenPdf = jest.fn();
 const mockRenderPdfPage = jest.fn();
 const mockGetPdfPageText = jest.fn();
 const mockClosePdf = jest.fn();
+const mockGetPdfFileSize = jest.fn();
+
+jest.mock('@/lib/pdf-range-bridge', () => ({
+  getPdfFileSize: mockGetPdfFileSize,
+  PDF_RANGE_CHUNK_SIZE: 256 * 1024,
+  readPdfRangeAsBase64: jest.fn(),
+}));
 
 jest.mock('@/modules/bussy-reader-pdf/src', () => ({
   openPdf: mockOpenPdf,
@@ -18,6 +36,7 @@ const { PdfReaderView } = require('@/components/PdfReaderView') as typeof import
 describe('PdfReaderView', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockGetPdfFileSize.mockReturnValue(120 * 1024 * 1024);
     mockOpenPdf.mockResolvedValue({ id: 'session-1', pageCount: 3 });
     mockRenderPdfPage.mockResolvedValue('native-page-image');
     mockGetPdfPageText.mockResolvedValue('Page text');
@@ -117,6 +136,9 @@ describe('PdfReaderView', () => {
   it('reports a missing or corrupt PDF without leaving a native session open', async () => {
     const onError = jest.fn();
     mockOpenPdf.mockRejectedValueOnce(new Error('The PDF could not be opened.'));
+    mockGetPdfFileSize.mockImplementationOnce(() => {
+      throw new Error('The file is missing, empty, or unreadable.');
+    });
 
     render(
       <PdfReaderView
@@ -137,6 +159,53 @@ describe('PdfReaderView', () => {
     await waitFor(() => expect(onError).toHaveBeenCalledWith('The PDF could not be opened.'));
     expect(mockRenderPdfPage).not.toHaveBeenCalled();
     expect(mockClosePdf).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the embedded pdf.js WebView when native PDF support is unavailable', async () => {
+    const onLoaded = jest.fn();
+    const onPageChanged = jest.fn();
+    const onPageText = jest.fn();
+    mockOpenPdf.mockRejectedValueOnce(new Error('Native PDF reading is unavailable in this app build.'));
+    const screen = render(
+      <PdfReaderView
+        uri="file:///fallback.pdf"
+        initialPage={0}
+        theme={{ background: '#000', foreground: '#fff', muted: '#999' }}
+        margin={24}
+        onLoaded={onLoaded}
+        onPageChanging={jest.fn()}
+        onPageChanged={onPageChanged}
+        onPageText={onPageText}
+        onError={jest.fn()}
+        onLoadingChange={jest.fn()}
+        onReady={jest.fn()}
+      />,
+    );
+
+    const webView = await waitFor(() => screen.getByTestId('pdf-fallback-webview'));
+    const html = webView.props.source.html as string;
+    expect(html).toContain('PDFJS_WORKER_SOURCE');
+    expect(html).toContain('PDF_RANGE_CHUNK_SIZE');
+
+    await act(async () => {
+      fireEvent(webView, 'message', {
+        nativeEvent: { data: JSON.stringify({ type: 'loaded', pageCount: 2 }) },
+      });
+    });
+    await act(async () => {
+      fireEvent(screen.getByTestId('pdf-fallback-webview'), 'message', {
+        nativeEvent: { data: JSON.stringify({ type: 'pageRendered', page: 0 }) },
+      });
+    });
+    await act(async () => {
+      fireEvent(screen.getByTestId('pdf-fallback-webview'), 'message', {
+        nativeEvent: { data: JSON.stringify({ type: 'pageText', page: 0, text: 'Fallback page text' }) },
+      });
+    });
+
+    expect(onLoaded).toHaveBeenCalledWith(2);
+    expect(onPageChanged).toHaveBeenCalledWith(0, 2);
+    expect(onPageText).toHaveBeenCalledWith(0, 'Fallback page text', false);
   });
 
   it('stops waiting for native initialization and offers a retry after the timeout', async () => {
