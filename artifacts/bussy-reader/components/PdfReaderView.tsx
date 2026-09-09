@@ -47,8 +47,11 @@ const buildViewerHtml = (uri: string, theme: PdfTheme, margin: number, initialPa
       * { box-sizing: border-box; }
       html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: ${theme.background}; }
       body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: ${theme.foreground}; }
-      #viewer { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; touch-action: none; }
-      #page { display: block; margin: 0 auto; max-width: calc(100vw - ${margin * 2}px); max-height: 100%; background: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.22); will-change: transform, opacity; }
+       #viewer { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; touch-action: none; position: relative; }
+       #page-wrap { display: block; position: relative; max-width: calc(100vw - ${margin * 2}px); max-height: 100%; background: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.22); will-change: transform, opacity; }
+       #page { display: block; width: 100%; height: 100%; }
+       #highlight-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+       #highlight-layer span { position: absolute; color: transparent; white-space: pre; transform-origin: left bottom; }
       #page.page-next { animation: pageNext 180ms ease-out; }
       #page.page-previous { animation: pagePrevious 180ms ease-out; }
       @keyframes pageNext { from { opacity: .72; transform: translateX(14px) scale(.99); } to { opacity: 1; transform: translateX(0) scale(1); } }
@@ -58,7 +61,10 @@ const buildViewerHtml = (uri: string, theme: PdfTheme, margin: number, initialPa
   </head>
   <body>
     <main id="viewer" aria-label="PDF page viewer">
-      <canvas id="page" aria-label="PDF page"></canvas>
+       <div id="page-wrap">
+         <canvas id="page" aria-label="PDF page"></canvas>
+         <div id="highlight-layer" aria-hidden="true"></div>
+       </div>
       <div id="message">Loading PDF…</div>
     </main>
     <script type="module">
@@ -67,7 +73,9 @@ const buildViewerHtml = (uri: string, theme: PdfTheme, margin: number, initialPa
       const PDFJS_WORKER_SOURCE = ${JSON.stringify(pdfjsWorkerSource)};
       const INITIAL_PAGE = ${Math.max(1, initialPage + 1)};
       const viewer = document.getElementById('viewer');
+       const pageWrap = document.getElementById('page-wrap');
       const canvas = document.getElementById('page');
+       const highlightLayer = document.getElementById('highlight-layer');
       const message = document.getElementById('message');
       let pdf = null;
       let currentPage = INITIAL_PAGE;
@@ -75,6 +83,7 @@ const buildViewerHtml = (uri: string, theme: PdfTheme, margin: number, initialPa
       let queuedPage = null;
       let pdfjsLib = null;
       let workerUrl = null;
+       let spokenOffset = 0;
 
       const send = (payload) => {
         if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(payload));
@@ -90,6 +99,48 @@ const buildViewerHtml = (uri: string, theme: PdfTheme, margin: number, initialPa
       };
 
       const clampPage = (pageNumber) => Math.max(1, Math.min(pdf?.numPages || 1, pageNumber));
+
+       const applyHighlight = (offset) => {
+         spokenOffset = Math.max(0, Math.floor(Number(offset) || 0));
+         highlightLayer.querySelectorAll('span').forEach((span) => {
+           const start = Number(span.dataset.start || 0);
+           const end = Number(span.dataset.end || start);
+           if (spokenOffset <= start || end <= start) {
+             span.style.background = 'transparent';
+             return;
+           }
+           const progress = Math.min(100, Math.max(0, ((spokenOffset - start) / (end - start)) * 100));
+           span.style.background = progress >= 100
+             ? 'rgba(255, 221, 87, 0.72)'
+             : \`linear-gradient(to right, rgba(255, 221, 87, 0.72) 0%, rgba(255, 221, 87, 0.72) \${progress}%, transparent \${progress}%, transparent 100%)\`;
+         });
+       };
+
+       const renderHighlightLayer = (textContent, viewport) => {
+         highlightLayer.replaceChildren();
+         let textCursor = 0;
+         for (const item of textContent.items) {
+           if (!('str' in item) || !item.str) continue;
+           const text = item.str;
+           const transform = pdfjsLib.Util.transform(viewport.transform, item.transform);
+           const fontHeight = Math.max(1, Math.hypot(transform[2], transform[3]));
+           const width = Math.max(1, Number(item.width || 0) * viewport.scale);
+           const span = document.createElement('span');
+           span.textContent = text;
+           span.dataset.start = String(textCursor);
+           span.dataset.end = String(textCursor + text.length);
+           span.style.left = \`\${transform[4]}px\`;
+           span.style.top = \`\${transform[5] - fontHeight}px\`;
+           span.style.width = \`\${width}px\`;
+           span.style.height = \`\${fontHeight * 1.2}px\`;
+           span.style.fontSize = \`\${fontHeight}px\`;
+           span.style.lineHeight = '1';
+           span.style.transform = \`rotate(\${Math.atan2(transform[1], transform[0])}rad)\`;
+           highlightLayer.appendChild(span);
+           textCursor += text.length + 1;
+         }
+         applyHighlight(spokenOffset);
+       };
 
       const renderPage = async (pageNumber) => {
         if (!pdf) return;
@@ -121,6 +172,8 @@ const buildViewerHtml = (uri: string, theme: PdfTheme, margin: number, initialPa
           canvas.height = Math.floor(viewport.height * pixelRatio);
           canvas.style.width = \`\${viewport.width}px\`;
           canvas.style.height = \`\${viewport.height}px\`;
+           pageWrap.style.width = \`\${viewport.width}px\`;
+           pageWrap.style.height = \`\${viewport.height}px\`;
           const context = canvas.getContext('2d', { alpha: false });
           if (!context) throw new Error('PDF canvas is unavailable on this device.');
           context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
@@ -135,6 +188,7 @@ const buildViewerHtml = (uri: string, theme: PdfTheme, margin: number, initialPa
             .replace(/\\s+/g, ' ')
             .trim();
 
+           renderHighlightLayer(textContent, viewport);
           pdfPage.cleanup();
           hideMessage();
           send({ type: 'pageChanged', page: currentPage - 1, totalPages: pdf.numPages });
@@ -187,6 +241,7 @@ const buildViewerHtml = (uri: string, theme: PdfTheme, margin: number, initialPa
         try {
           const payload = JSON.parse(event.data);
           if (payload.type === 'goToPage') goToPage(Number(payload.page) + 1);
+           if (payload.type === 'setSpokenOffset') applyHighlight(payload.offset);
         } catch (error) {
           send({ type: 'error', message: error instanceof Error ? error.message : 'The PDF viewer received an invalid message.' });
         }
@@ -238,6 +293,7 @@ export function PdfReaderView({
   uri,
   initialPage,
   targetPage,
+  spokenOffset,
   theme,
   margin,
   onLoaded,
@@ -265,6 +321,10 @@ export function PdfReaderView({
   useEffect(() => {
     if (ready && targetPage !== undefined) send({ type: 'goToPage', page: targetPage });
   }, [ready, send, targetPage]);
+
+  useEffect(() => {
+    if (ready && spokenOffset !== undefined) send({ type: 'setSpokenOffset', offset: spokenOffset });
+  }, [ready, send, spokenOffset]);
 
   useEffect(() => {
     if (ready && onNavigateReady) {

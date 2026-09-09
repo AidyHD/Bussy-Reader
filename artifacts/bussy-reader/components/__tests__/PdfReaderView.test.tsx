@@ -43,6 +43,8 @@ describe('PdfReaderView', () => {
     expect(html).toContain('const PDF_URI = "file:///library/book.pdf"');
     expect(html).toContain('pdfjsLib.getDocument');
     expect(html).toContain('await openPdf({ url: PDF_URI })');
+    expect(html).toContain('renderHighlightLayer');
+    expect(html).toContain("payload.type === 'setSpokenOffset'");
     expect(webView.props.source.baseUrl).toBe('file:///library/');
   });
 
@@ -82,6 +84,17 @@ describe('PdfReaderView', () => {
     });
 
     expect(mockWebViewPostMessage).toHaveBeenCalledWith(JSON.stringify({ type: 'goToPage', page: 2 }));
+  });
+
+  it('updates the PDF highlight position without navigating', async () => {
+    const props = { ...baseProps(), spokenOffset: 42 };
+    const screen = render(<PdfReaderView {...props} />);
+    const webView = screen.getByTestId('pdf-webview');
+
+    fireEvent(webView, 'message', { nativeEvent: { data: JSON.stringify({ type: 'ready' }) } });
+    await waitFor(() => expect(mockWebViewPostMessage).toHaveBeenCalledWith(
+      JSON.stringify({ type: 'setSpokenOffset', offset: 42 }),
+    ));
   });
 
   it('forwards PDF errors from the WebView', () => {

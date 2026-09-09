@@ -573,5 +573,10 @@ describe('ReaderScreen read aloud PDF flow', () => {
     expect(mockSpeechStop).toHaveBeenCalled();
     expect(screen.getByTestId('reading-offset').props.children).toBe('50%');
     expect(mockPdfProps.spokenOffset).toBe(5);
+    expect(screen.getByTestId('reading-scrubber').props.accessibilityValue).toEqual({
+      min: 0,
+      max: 100,
+      now: 50,
+    });
   });
 });

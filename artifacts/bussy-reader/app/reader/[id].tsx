@@ -299,6 +299,9 @@ export default function ReaderScreen() {
     : pages[page] ?? '';
   const currentTextLength = currentPageText.length;
   const visibleSpokenOffset = Math.max(0, Math.min(currentTextLength, spokenOffset));
+  const readingPercent = currentTextLength > 0
+    ? Math.round((visibleSpokenOffset / currentTextLength) * 100)
+    : 0;
 
   const updateSpokenOffset = (nextOffset: number) => {
     const clamped = Math.max(0, Math.min(currentTextLength, Math.floor(nextOffset)));
@@ -791,14 +794,15 @@ export default function ReaderScreen() {
            <View style={styles.footerRow}><Text style={[styles.progressText, { color: theme.muted }]}>Page {pageCount > 0 ? page + 1 : '—'} of {pageCount || '—'}</Text><Pressable testID="bookmarks-button" onPress={() => setBookmarksVisible(true)}><Text style={[styles.bookmarkLink, { color: colors.primary }]}>Bookmarks</Text></Pressable></View>
            <View style={styles.scrubberSection}>
              <View style={styles.scrubberLabelRow}>
-               <Text style={[styles.scrubberLabel, { color: theme.muted }]}>Read aloud position</Text>
-               <Text testID="reading-offset" style={[styles.scrubberLabel, { color: theme.muted }]}>{currentTextLength > 0 ? `${Math.round((visibleSpokenOffset / currentTextLength) * 100)}%` : '—'}</Text>
+                <Text style={[styles.scrubberLabel, { color: theme.muted }]}>Highlight & read position</Text>
+                <Text testID="reading-offset" style={[styles.scrubberLabel, { color: theme.muted }]}>{currentTextLength > 0 ? `${readingPercent}%` : '—'}</Text>
              </View>
              <View
                testID="reading-scrubber"
                accessibilityRole="adjustable"
-               accessibilityLabel="Read aloud position"
-               accessibilityValue={{ min: 0, max: currentTextLength, now: visibleSpokenOffset }}
+                accessibilityLabel="Highlight and read aloud position"
+                accessibilityHint="Slide from 0 to 100 percent to choose where Read aloud begins."
+                accessibilityValue={{ min: 0, max: 100, now: readingPercent }}
                onLayout={(event) => setScrubberWidth(event.nativeEvent.layout.width)}
                onTouchStart={(event) => scrubFromLocation(event.nativeEvent.locationX)}
                onTouchMove={(event) => scrubFromLocation(event.nativeEvent.locationX)}
