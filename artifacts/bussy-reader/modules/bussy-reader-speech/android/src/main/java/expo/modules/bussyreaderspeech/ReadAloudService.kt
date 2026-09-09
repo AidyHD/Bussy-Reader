@@ -7,10 +7,14 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.media.AudioManager
+import android.media.AudioAttributes
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import androidx.core.app.NotificationCompat
@@ -26,11 +30,80 @@ class ReadAloudService : Service() {
   override fun onCreate() {
     super.onCreate()
     stopRequested = false
-    createNotificationChannel()
-    startForeground(NOTIFICATION_ID, buildNotification())
-    textToSpeech = TextToSpeech(this) { status ->
+    try {
+      createNotificationChannel()
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        startForeground(
+          NOTIFICATION_ID,
+          buildNotification(),
+          ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+        )
+      } else {
+        startForeground(NOTIFICATION_ID, buildNotification())
+      }
+    } catch (error: Throwable) {
+      emit(
+        ACTION_EVENT_ERROR,
+        pendingRequest?.utteranceId.orEmpty(),
+        "Android could not start the Read Aloud service: ${error.message ?: "unknown error"}"
+      )
+      stopSelf()
+      return
+    }
+
+    try {
+      textToSpeech = TextToSpeech(this) { status ->
+        // TextToSpeech may call its listener before the constructor assignment
+        // has returned. Always configure it on the main queue so the service
+        // field is populated before we consume the callback.
+        Handler(Looper.getMainLooper()).post {
+          handleTtsInitialized(status)
+        }
+      }
+    } catch (error: Throwable) {
+      emit(
+        ACTION_EVENT_ERROR,
+        pendingRequest?.utteranceId.orEmpty(),
+        "Android TextToSpeech could not initialize: ${error.message ?: "unknown error"}"
+      )
+      pendingRequest = null
+      stopSelf()
+    }
+  }
+
+  private fun handleTtsInitialized(status: Int) {
+    try {
       if (status == TextToSpeech.SUCCESS) {
-        val tts = textToSpeech ?: return@TextToSpeech
+        val tts = textToSpeech ?: return
+        try {
+          tts.setAudioAttributes(
+            AudioAttributes.Builder()
+              .setUsage(AudioAttributes.USAGE_MEDIA)
+              .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+              .build()
+          )
+          val languageStatus = tts.setLanguage(Locale.getDefault())
+          if (
+            languageStatus == TextToSpeech.LANG_MISSING_DATA
+            || languageStatus == TextToSpeech.LANG_NOT_SUPPORTED
+          ) {
+            ttsReady = false
+            pendingRequest?.let {
+              emit(ACTION_EVENT_ERROR, it.utteranceId, "No installed Android voice supports this language.")
+              pendingRequest = null
+            }
+            stopSelf()
+            return
+          }
+        } catch (error: Throwable) {
+          ttsReady = false
+          pendingRequest?.let {
+            emit(ACTION_EVENT_ERROR, it.utteranceId, "Android TextToSpeech could not configure a voice.")
+            pendingRequest = null
+          }
+          stopSelf()
+          return
+        }
         ttsReady = true
         tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
           override fun onStart(utteranceId: String) {
@@ -73,6 +146,14 @@ class ReadAloudService : Service() {
         }
         stopSelf()
       }
+    } catch (error: Throwable) {
+      emit(
+        ACTION_EVENT_ERROR,
+        pendingRequest?.utteranceId.orEmpty(),
+        "Android TextToSpeech could not initialize: ${error.message ?: "unknown error"}"
+      )
+      pendingRequest = null
+      stopSelf()
     }
   }
 
@@ -111,17 +192,21 @@ class ReadAloudService : Service() {
     }
     activeRequest = request
     tts.setSpeechRate(request.rate.coerceIn(0.1f, 4.0f))
-    val result = tts.speak(
-      request.text,
-      TextToSpeech.QUEUE_FLUSH,
-      Bundle().apply {
-        // KEY_PARAM_STREAM expects the numeric Android stream type, not the
-        // symbolic constant name. Passing "STREAM_MUSIC" can cause the TTS
-        // engine to reject the utterance without producing audio.
-        putString(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_MUSIC.toString())
-      },
-      request.utteranceId
-    )
+    val result = try {
+      tts.speak(
+        request.text,
+        TextToSpeech.QUEUE_FLUSH,
+        Bundle().apply {
+          // KEY_PARAM_STREAM expects the numeric Android stream type, not the
+          // symbolic constant name. Passing "STREAM_MUSIC" can cause the TTS
+          // engine to reject the utterance without producing audio.
+          putString(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_MUSIC.toString())
+        },
+        request.utteranceId
+      )
+    } catch (error: Throwable) {
+      TextToSpeech.ERROR
+    }
     if (result == TextToSpeech.ERROR) {
       if (activeRequest?.utteranceId == request.utteranceId) activeRequest = null
       emit(ACTION_EVENT_ERROR, request.utteranceId, "Android TextToSpeech rejected this page.")

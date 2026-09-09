@@ -3,7 +3,7 @@ import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-aud
 import * as FileSystem from 'expo-file-system/legacy';
 import * as KeepAwake from 'expo-keep-awake';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Alert, AppState, FlatList, Modal, PanResponder, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, AppState, FlatList, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -645,11 +645,14 @@ export default function ReaderScreen() {
     }
 
     let session: number | null = null;
+    const usesNativeSpeech = ReadAloudSpeech.usesNativeBackgroundSpeech();
+    const needsSilentAudioKeepAlive = Platform.OS !== 'android';
     try {
-      await setAudioModeAsync(AUDIO_MODE);
+      if (!usesNativeSpeech && needsSilentAudioKeepAlive) {
+        await setAudioModeAsync(AUDIO_MODE);
+      }
       speechSessionRef.current += 1;
       session = speechSessionRef.current;
-      ReadAloudSpeech.stop();
       isReadingAloudRef.current = true;
       speechInFlightRef.current = false;
       activeSpeechUtteranceRef.current = null;
@@ -660,7 +663,9 @@ export default function ReaderScreen() {
       pendingSpeechPageRef.current = null;
       ttsNavigationPageRef.current = null;
       setIsReadingAloud(true);
-      await startSilentAudio(session);
+      if (!usesNativeSpeech && needsSilentAudioKeepAlive) {
+        await startSilentAudio(session);
+      }
       if (session !== speechSessionRef.current || !isReadingAloudRef.current) return;
       requestSpeechPageRef.current?.(pageRef.current, session);
     } catch {
