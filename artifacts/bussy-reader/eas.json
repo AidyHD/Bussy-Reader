@@ -2,6 +2,7 @@
   "build": {
     "preview": {
       "distribution": "internal",
+      "node": "20.18.0",
       "pnpm": "10.26.1",
       "android": {
         "buildType": "apk"
