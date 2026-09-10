@@ -96,7 +96,7 @@ export function PdfThumbnailGenerator({ sourceUri, onComplete }: PdfThumbnailGen
   useEffect(() => {
     completedRef.current = false;
     const timeout = setTimeout(() => {
-      console.warn('[Bussy Reader] PDF thumbnail timed out; using the styled placeholder cover.', {
+      console.warn('[Cheeky Reader] PDF thumbnail timed out; using the styled placeholder cover.', {
         uri: sourceUri,
       });
       complete(null);
@@ -109,7 +109,7 @@ export function PdfThumbnailGenerator({ sourceUri, onComplete }: PdfThumbnailGen
     try {
       const message = JSON.parse(event.nativeEvent.data) as ThumbnailMessage;
       if (message.type === 'error') {
-        console.error('[Bussy Reader] Local PDF thumbnail parser error', {
+        console.error('[Cheeky Reader] Local PDF thumbnail parser error', {
           uri: sourceUri,
           message: message.message,
         });

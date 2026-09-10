@@ -18,7 +18,7 @@ const chunkText = (text: string) => text.split(/\n\s*\n/).map((chunk) => chunk.t
   return pages;
 }, []);
 
-const sampleForUnsupported = (book: Book) => `This ${book.type.toUpperCase()} is stored locally and ready to read.\n\nBussy Reader keeps the original file private on this device. Native pagination is enabled for this document format in the reader shell, and your position will be restored the next time you open it.\n\nUse the controls below to adjust your reading surface, add a bookmark, or start read aloud.`;
+const sampleForUnsupported = (book: Book) => `This ${book.type.toUpperCase()} is stored locally and ready to read.\n\nCheeky Reader keeps the original file private on this device. Native pagination is enabled for this document format in the reader shell, and your position will be restored the next time you open it.\n\nUse the controls below to adjust your reading surface, add a bookmark, or start read aloud.`;
 
 const SPEECH_RATES = [0.8, 1, 1.05, 1.25, 1.5] as const;
 type SpeechRate = (typeof SPEECH_RATES)[number];
@@ -75,11 +75,11 @@ const SILENT_AUDIO_FILE_NAME = 'bussy-reader-silence.wav';
 const SILENT_AUDIO_BASE64 = 'UklGRuwAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YcgAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
 
 export default function ReaderScreen() {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { books, settings, updateProgress, addBookmark } = useLibrary();
+  const colors = useColors(settings.theme);
   const book = books.find((item) => item.id === id);
   const [pages, setPages] = useState<string[]>([]);
   const [page, setPage] = useState(0);
@@ -261,7 +261,7 @@ export default function ReaderScreen() {
         setPage(Math.min(book.position, Math.max(loadedPages.length - 1, 0)));
         setSpokenOffset(Math.max(0, Math.floor(book.spokenOffset ?? 0)));
       } catch (error) {
-        console.error('[Bussy Reader] Failed to load local document', {
+        console.error('[Cheeky Reader] Failed to load local document', {
           uri: book.uri,
           error,
         });
@@ -751,7 +751,7 @@ export default function ReaderScreen() {
                }
             }}
              onError={(message) => {
-                console.error('[Bussy Reader] Local PDF parser error', { uri: book.uri, message });
+                console.error('[Cheeky Reader] Local PDF parser error', { uri: book.uri, message });
                 setLoadError(message === PDF_RETRY_MESSAGE ? null : `Unable to open this local PDF. Try importing it again. ${message}`);
                if (isReadingAloudRef.current) stopReading();
              }}

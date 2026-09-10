@@ -1,6 +1,6 @@
-# Bussy Reader
+# Cheeky Reader
 
-Bussy Reader is a private, offline-first Expo mobile document reader for local PDF, EPUB, and TXT files.
+Cheeky Reader is a private, offline-first Expo mobile document reader for local PDF, EPUB, and TXT files.
 
 ## Run & Operate
 

@@ -168,7 +168,7 @@ export function LibraryProvider({ children }: PropsWithChildren) {
         await FileSystem.makeDirectoryAsync(coversDirectory, { intermediates: true });
         coverUri = (await generatePdfThumbnail(destination, `${coversDirectory}${bookId}.png`)) ?? undefined;
       } catch (error) {
-        console.warn('[Bussy Reader] PDF cover generation failed; importing without a cover.', {
+        console.warn('[Cheeky Reader] PDF cover generation failed; importing without a cover.', {
           uri: destination,
           error,
         });

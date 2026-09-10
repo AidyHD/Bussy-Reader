@@ -7,11 +7,10 @@ import { router } from 'expo-router';
 import { useLibrary, Book, SortMode, ThemeName } from '@/context/LibraryContext';
 import { useColors } from '@/hooks/useColors';
 
-const themeLabels: Record<ThemeName, string> = { pitch: 'Pitch black', sepia: 'Sepia', light: 'Light' };
 const sortLabels: Record<SortMode, string> = { lastRead: 'Last read', name: 'Name', dateAdded: 'Date added' };
 
-function BookCover({ book, compact, onPress }: { book: Book; compact?: boolean; onPress: () => void }) {
-  const colors = useColors();
+function BookCover({ book, compact, onPress, theme }: { book: Book; compact?: boolean; onPress: () => void; theme: ThemeName }) {
+  const colors = useColors(theme);
   const accent = book.type === 'pdf' ? '#FF7D68' : book.type === 'epub' ? '#C4A7FF' : '#86D6B2';
   const [coverFailed, setCoverFailed] = useState(false);
   const hasCover = Boolean(book.coverUri && !coverFailed);
@@ -40,10 +39,9 @@ function BookCover({ book, compact, onPress }: { book: Book; compact?: boolean; 
 }
 
 export default function LibraryScreen() {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { books, settings, layout, sort, hydrated, importBook, setLayout, setSort, setSettings } = useLibrary();
-  const [settingsVisible, setSettingsVisible] = useState(false);
+  const { books, settings, layout, sort, hydrated, importBook, setLayout, setSort } = useLibrary();
+  const colors = useColors(settings.theme);
   const [sortVisible, setSortVisible] = useState(false);
   const sortedBooks = useMemo(() => [...books].sort((a, b) => sort === 'name' ? a.name.localeCompare(b.name) : sort === 'dateAdded' ? b.addedAt - a.addedAt : (b.lastReadAt ?? 0) - (a.lastReadAt ?? 0)), [books, sort]);
 
@@ -57,9 +55,9 @@ export default function LibraryScreen() {
       <View style={styles.header}>
         <View>
           <Text style={[styles.eyebrow, { color: colors.primary }]}>YOUR PRIVATE SHELF</Text>
-          <Text style={[styles.title, { color: colors.foreground }]}>Bussy Reader</Text>
+          <Text style={[styles.title, { color: colors.foreground }]}>Cheeky Reader</Text>
         </View>
-        <Pressable testID="settings-button" onPress={() => setSettingsVisible(true)} style={[styles.iconButton, { backgroundColor: colors.card }]}>
+        <Pressable testID="settings-button" onPress={() => router.push('/settings')} style={[styles.iconButton, { backgroundColor: colors.card }]}>
           <Feather name="sliders" size={20} color={colors.foreground} />
         </Pressable>
       </View>
@@ -82,8 +80,8 @@ export default function LibraryScreen() {
           <View style={[styles.emptyIcon, { backgroundColor: colors.card }]}>
             <Feather name="book-open" size={30} color={colors.primary} />
           </View>
-          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>A quiet shelf awaits</Text>
-          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Import your first document. Don't be a Bussy...Do it!.</Text>
+          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Add your first book </Text>
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Import your first document and get reading.</Text>
           <Pressable testID="import-empty-button" onPress={handleImport} style={({ pressed }) => [styles.primaryButton, { backgroundColor: colors.primary }, pressed && styles.pressed]}>
             <Feather name="plus" size={18} color={colors.primaryForeground} />
             <Text style={[styles.primaryButtonText, { color: colors.primaryForeground }]}>Import a document</Text>
@@ -99,7 +97,7 @@ export default function LibraryScreen() {
           contentContainerStyle={layout === 'grid' ? styles.gridContent : styles.listContent}
           columnWrapperStyle={layout === 'grid' ? styles.gridRow : undefined}
           showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => <BookCover book={item} compact={layout === 'list'} onPress={() => router.push(`/reader/${item.id}`)} />}
+           renderItem={({ item }) => <BookCover book={item} compact={layout === 'list'} theme={settings.theme} onPress={() => router.push(`/reader/${item.id}`)} />}
           ListFooterComponent={<Pressable testID="import-button" onPress={handleImport} style={[styles.importRow, { borderColor: colors.border }]}><Feather name="plus" size={18} color={colors.primary} /><Text style={[styles.importText, { color: colors.primary }]}>Import another document</Text></Pressable>}
         />
       )}
@@ -118,18 +116,6 @@ export default function LibraryScreen() {
         </Pressable>
       </Modal>
 
-      <Modal transparent visible={settingsVisible} animationType="slide" onRequestClose={() => setSettingsVisible(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setSettingsVisible(false)}>
-          <Pressable style={[styles.sheet, { backgroundColor: colors.card }]} onPress={(event) => event.stopPropagation()}>
-            <View style={styles.sheetHeader}><Text style={[styles.sheetTitle, { color: colors.foreground }]}>Reading preferences</Text><Pressable onPress={() => setSettingsVisible(false)}><Feather name="x" size={20} color={colors.mutedForeground} /></Pressable></View>
-            <Text style={[styles.preferenceLabel, { color: colors.mutedForeground }]}>Reader theme</Text>
-            <View style={styles.themeRow}>{(Object.keys(themeLabels) as ThemeName[]).map((theme) => <Pressable key={theme} onPress={() => setSettings({ theme })} style={[styles.themeChip, { borderColor: settings.theme === theme ? colors.primary : colors.border, backgroundColor: settings.theme === theme ? colors.primary : 'transparent' }]}><Text style={{ color: settings.theme === theme ? colors.primaryForeground : colors.foreground, fontSize: 13 }}>{themeLabels[theme]}</Text></Pressable>)}</View>
-            <Text style={[styles.preferenceLabel, { color: colors.mutedForeground }]}>Text size</Text>
-            <View style={styles.themeRow}><Pressable onPress={() => setSettings({ fontSize: Math.max(14, settings.fontSize - 1) })} style={[styles.roundButton, { borderColor: colors.border }]}><Text style={[styles.roundButtonText, { color: colors.foreground }]}>A−</Text></Pressable><Text style={[styles.sizeValue, { color: colors.foreground }]}>{settings.fontSize} pt</Text><Pressable onPress={() => setSettings({ fontSize: Math.min(28, settings.fontSize + 1) })} style={[styles.roundButton, { borderColor: colors.border }]}><Text style={[styles.roundButtonText, { color: colors.foreground }]}>A+</Text></Pressable></View>
-            <Pressable onPress={() => setSettings({ keepAwake: !settings.keepAwake })} style={styles.optionRow}><View><Text style={[styles.optionText, { color: colors.foreground }]}>Keep screen awake</Text><Text style={[styles.optionHint, { color: colors.mutedForeground }]}>While reading visually</Text></View><Feather name={settings.keepAwake ? 'toggle-right' : 'toggle-left'} size={26} color={settings.keepAwake ? colors.primary : colors.mutedForeground} /></Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
     </View>
   );
 }
@@ -178,15 +164,7 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.72 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.58)', justifyContent: 'flex-end' },
   sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 22, paddingTop: 22, paddingBottom: 36 },
-  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
   sheetTitle: { fontSize: 20, fontWeight: '700' },
   optionRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(128,128,128,0.18)' },
   optionText: { fontSize: 15, fontWeight: '500' },
-  optionHint: { fontSize: 12, marginTop: 3 },
-  preferenceLabel: { fontSize: 12, fontWeight: '600', marginTop: 13, marginBottom: 10 },
-  themeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  themeChip: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, borderWidth: 1 },
-  roundButton: { width: 42, height: 38, borderWidth: 1, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  roundButtonText: { fontSize: 15, fontWeight: '600' },
-  sizeValue: { flex: 1, textAlign: 'center', fontSize: 14 },
 });

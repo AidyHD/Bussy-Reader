@@ -1,58 +1,73 @@
-/**
- * Semantic design tokens for the mobile app.
- *
- * These tokens mirror the naming conventions used in web artifacts (index.css)
- * so that multi-artifact projects share a cohesive visual identity.
- *
- * Replace the placeholder values below with values that match the project's
- * brand. If a sibling web artifact exists, read its index.css and convert the
- * HSL values to hex so both artifacts use the same palette.
- *
- * To add dark mode, add a `dark` key with the same token names.
- * The useColors() hook will automatically pick it up.
- */
+const pitch = {
+  text: '#F1EEE8',
+  tint: '#FF7D68',
+  background: '#0C0D0C',
+  foreground: '#F1EEE8',
+  card: '#171917',
+  cardForeground: '#F1EEE8',
+  primary: '#FF7D68',
+  primaryForeground: '#1B0D0A',
+  secondary: '#232522',
+  secondaryForeground: '#F1EEE8',
+  muted: '#20221F',
+  mutedForeground: '#979891',
+  accent: '#2B2521',
+  accentForeground: '#F1EEE8',
+  destructive: '#FF6B62',
+  destructiveForeground: '#1B0D0A',
+  border: '#2A2D29',
+  input: '#2A2D29',
+};
+
+const sepia = {
+  text: '#453829',
+  tint: '#A86642',
+  background: '#F2E5CD',
+  foreground: '#453829',
+  card: '#E8D6B7',
+  cardForeground: '#453829',
+  primary: '#A86642',
+  primaryForeground: '#FFF8ED',
+  secondary: '#DDC6A4',
+  secondaryForeground: '#453829',
+  muted: '#E5D1AE',
+  mutedForeground: '#806D57',
+  accent: '#E5CBAA',
+  accentForeground: '#453829',
+  destructive: '#B54F43',
+  destructiveForeground: '#FFF8ED',
+  border: '#D1B991',
+  input: '#D1B991',
+};
+
+const light = {
+  text: '#242421',
+  tint: '#C85E4B',
+  background: '#F8F8F5',
+  foreground: '#242421',
+  card: '#FFFFFF',
+  cardForeground: '#242421',
+  primary: '#C85E4B',
+  primaryForeground: '#FFFFFF',
+  secondary: '#ECECE6',
+  secondaryForeground: '#242421',
+  muted: '#F0F0EB',
+  mutedForeground: '#76766C',
+  accent: '#F3E5DF',
+  accentForeground: '#5D2B23',
+  destructive: '#C7473E',
+  destructiveForeground: '#FFFFFF',
+  border: '#E0E0D8',
+  input: '#E0E0D8',
+};
+
+export const themeColors = { pitch, sepia, light };
+export type AppTheme = keyof typeof themeColors;
 
 const colors = {
-  light: {
-    // Legacy aliases (kept for backward compatibility)
-    text: '#F1EEE8',
-    tint: '#FF7D68',
-
-    // Core surfaces
-    background: '#0C0D0C',
-    foreground: '#F1EEE8',
-
-    // Cards / elevated surfaces
-    card: '#171917',
-    cardForeground: '#F1EEE8',
-
-    // Primary action color (buttons, links, active states)
-    primary: '#FF7D68',
-    primaryForeground: '#1B0D0A',
-
-    // Secondary / less-emphasis interactive surfaces
-    secondary: '#232522',
-    secondaryForeground: '#F1EEE8',
-
-    // Muted / subdued elements (dividers, timestamps, placeholders)
-    muted: '#20221F',
-    mutedForeground: '#979891',
-
-    // Accent highlights (badges, selected items, focus rings)
-    accent: '#2B2521',
-    accentForeground: '#F1EEE8',
-
-    // Destructive actions (delete, error states)
-    destructive: '#FF6B62',
-    destructiveForeground: '#1B0D0A',
-
-    // Borders and input outlines
-    border: '#2A2D29',
-    input: '#2A2D29',
-  },
-
-  // Border radius (in px). Sync from the sibling web artifact's --radius
-  // CSS variable. This value applies to cards, buttons, inputs, and modals.
+  ...themeColors,
+  // The default palette is kept under `light` for existing callers that only
+  // need a fallback palette.
   radius: 8,
 };
 

@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Bussy Reader",
-    "slug": "bussy-reader",
+    "name": "Cheeky Reader",
+    "slug": "cheeky-reader",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "bussy-reader",
+    "scheme": "cheeky-reader",
     "userInterfaceStyle": "automatic",
     "web": {
       "favicon": "./assets/images/icon.png"
